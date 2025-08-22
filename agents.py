@@ -2,6 +2,8 @@
 import os
 from langchain_openai import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
+from tools import get_weather, calculate_sum, semantic_search, wiki_search, wiki_summary
+import config  # ensure .env is loaded (load_dotenv runs in config)
 from langchain.tools import tool
 from typing import List, Dict, Any, Optional
 
@@ -205,11 +207,8 @@ def get_llm():
 def create_agent():
     """Tạo AI agent với các tools tích hợp"""
     llm = get_llm()
-    tools = [
-        upload_and_process_document,
-        search_documents, 
-        get_document_summary
-    ]
+    # Ưu tiên semantic_search đứng trước wiki_search
+    tools = [get_weather, calculate_sum, semantic_search, wiki_search, wiki_summary,upload_and_process_document,search_documents,get_document_summary]
 
     agent = initialize_agent(
         tools,
