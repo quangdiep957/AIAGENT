@@ -175,32 +175,63 @@ uploaded = st.sidebar.file_uploader(
     "📎", type=["txt", "pdf", "docx", "png", "jpg", "jpeg"], label_visibility="collapsed", key="sidebar_uploader"
 )
 if uploaded is not None:
+    print(f"🔍 STREAMLIT DEBUG: File uploaded - {uploaded.name}, size: {uploaded.size} bytes")
+    
     # Lưu file tạm và xử lý
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded.name.split('.')[-1]}") as tmp_file:
         tmp_file.write(uploaded.getvalue())
         tmp_file_path = tmp_file.name
     
+    print(f"🔍 STREAMLIT DEBUG: Temp file created: {tmp_file_path}")
+    
     # Gọi agent để xử lý file
-    with st.sidebar.spinner("Đang xử lý file..."):
-        result = st.session_state.agent.invoke({
-            'input': f'upload_and_process_document {tmp_file_path}|{uploaded.name}'
-        })
-        
-        if isinstance(result, dict) and 'output' in result:
-            result_text = result['output']
-        else:
-            result_text = str(result)
+    with st.spinner("Đang xử lý file..."):
+        try:
+            result = st.session_state.agent.invoke({
+                'input': f'upload_and_process_document {tmp_file_path}|{uploaded.name}'
+            })
+            
+            print(f"🔍 STREAMLIT DEBUG: Agent result: {result}")
+            
+            if isinstance(result, dict) and 'output' in result:
+                result_text = result['output']
+            else:
+                result_text = str(result)
+                
+            print(f"🔍 STREAMLIT DEBUG: Final result: {result_text}")
+            
+        except Exception as e:
+            print(f"❌ STREAMLIT DEBUG: Agent error: {e}")
+            result_text = f"❌ Lỗi agent: {str(e)}"
     
     # Cleanup
-    os.unlink(tmp_file_path)
+    try:
+        os.unlink(tmp_file_path)
+        print(f"🔍 STREAMLIT DEBUG: Cleaned up temp file")
+    except Exception as cleanup_error:
+        print(f"⚠️ STREAMLIT DEBUG: Cleanup error: {cleanup_error}")
     
-    if "✅" in result_text:
+    # Check success với nhiều điều kiện
+    is_success = (
+        "✅" in result_text or 
+        "thành công" in result_text or 
+        "successful" in result_text or
+        "đã được upload" in result_text.lower()
+    )
+    
+    print(f"🔍 STREAMLIT DEBUG: Success check result: {is_success}")
+    
+    if is_success:
         st.sidebar.success(f"Đã xử lý: {uploaded.name}")
+        print(f"✅ STREAMLIT DEBUG: Showing success message")
         # Thêm vào attached files để hiển thị
         files = st.session_state.attached_files.setdefault(st.session_state.current_session, [])
         files.append({"name": uploaded.name, "bytes": uploaded.getvalue()})
     else:
         st.sidebar.error("Lỗi xử lý file")
+        print(f"❌ STREAMLIT DEBUG: Showing error message")
+        with st.sidebar.expander("Chi tiết lỗi"):
+            st.text(result_text)
 
 # Danh sách phiên chat
 session_names = list(st.session_state.chat_sessions.keys())

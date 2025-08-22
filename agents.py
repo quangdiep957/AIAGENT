@@ -38,13 +38,25 @@ def upload_and_process_document(file_info: str) -> str:
         Kết quả xử lý file
     """
     try:
+        print(f"🔍 DEBUG: Starting upload process with input: {file_info}")
+        
         # Parse file info
         if "|" not in file_info:
+            print(f"❌ DEBUG: Invalid format - missing | separator")
             return "❌ Format không đúng. Vui lòng sử dụng format: file_path|file_name"
 
         file_path, file_name = file_info.split("|", 1)
-
+        print(f"🔍 DEBUG: Parsed - file_path: {file_path}, file_name: {file_name}")
+        
+        # Check file exists
+        if not os.path.exists(file_path):
+            print(f"❌ DEBUG: File not found at path: {file_path}")
+            return f"❌ File không tồn tại: {file_path}"
+        
+        print(f"🔍 DEBUG: File size: {os.path.getsize(file_path):,} bytes")
+        
         # Upload file
+        print(f"🔍 DEBUG: Starting file upload...")
         upload_result = upload_tool.upload_file(
             file_path=file_path,
             metadata={
@@ -52,46 +64,73 @@ def upload_and_process_document(file_info: str) -> str:
                 "upload_source": "ai_agent"
             }
         )
-
+        
+        print(f"🔍 DEBUG: Upload result success: {upload_result.get('success')}")
         if not upload_result["success"]:
-            return f"❌ Upload thất bại: {', '.join(upload_result['errors'])}"
-
+            error_msg = f"❌ Upload thất bại: {', '.join(upload_result.get('errors', ['Unknown error']))}"
+            print(f"❌ DEBUG: {error_msg}")
+            return error_msg
+        
         file_document = upload_result["document"]
         file_id = upload_result["file_id"]
-
+        print(f"🔍 DEBUG: Upload successful - file_id: {file_id}")
+        
         # Extract content dựa trên loại file
         content = ""
         extraction_method = ""
         file_type = file_document["file_type"]
         file_path_abs = file_document["absolute_path"]
-
-        if file_type in ["pdf", "docx", "doc", "txt", "md"]:
+        
+        print(f"🔍 DEBUG: File type detected: {file_type}")
+        print(f"🔍 DEBUG: Absolute path: {file_path_abs}")
+        
+        if file_type in ["pdf", "docx", "doc", "txt", "md", "text"]:
             # Đọc file text-based
+            print(f"🔍 DEBUG: Reading {file_type} file...")
             read_result = reader_tool.read_file(file_path_abs)
+            print(f"🔍 DEBUG: Read result success: {read_result.get('success')}")
+            
             if read_result["success"]:
                 if file_type == "pdf":
-                    content = read_result["total_content"]
+                    content = read_result.get("total_content", read_result.get("content", ""))
                 elif file_type in ["docx", "doc"]:
-                    content = read_result["total_content"]
+                    content = read_result.get("total_content", read_result.get("content", ""))
                 else:  # text files
                     content = read_result["content"]
                 extraction_method = "file_reader"
+                print(f"🔍 DEBUG: Content extracted - length: {len(content)} chars")
             else:
-                return f"❌ Không thể đọc file: {read_result['error']}"
-
+                error_msg = f"❌ Không thể đọc file: {read_result.get('error', 'Unknown read error')}"
+                print(f"❌ DEBUG: {error_msg}")
+                return error_msg
+        
         elif file_type == "image":
             # OCR cho ảnh
+            print(f"🔍 DEBUG: Processing image with OCR...")
             ocr_result = ocr_tool.extract_text_from_image(file_path_abs)
+            print(f"🔍 DEBUG: OCR result success: {ocr_result.get('success')}")
+            
             if ocr_result["success"]:
                 content = ocr_result["text"]
                 extraction_method = "ocr"
+                print(f"🔍 DEBUG: OCR content extracted - length: {len(content)} chars")
             else:
-                return f"❌ OCR thất bại: {ocr_result['error']}"
-
+                error_msg = f"❌ OCR thất bại: {ocr_result.get('error', 'Unknown OCR error')}"
+                print(f"❌ DEBUG: {error_msg}")
+                return error_msg
+        else:
+            error_msg = f"❌ Loại file không được hỗ trợ: {file_type}"
+            print(f"❌ DEBUG: {error_msg}")
+            return error_msg
+        
         if not content or not content.strip():
+            print(f"❌ DEBUG: Empty content after extraction")
             return "❌ Không thể trích xuất nội dung từ file"
-
+        
+        print(f"🔍 DEBUG: Content validation passed - {len(content.split())} words")
+        
         # Tạo embeddings
+        print(f"🔍 DEBUG: Creating embeddings...")
         processing_result = embedding_service.process_file_content(
             file_id=file_id,
             content=content,
@@ -100,23 +139,34 @@ def upload_and_process_document(file_info: str) -> str:
                 "file_type": file_type
             }
         )
-
+        
+        print(f"🔍 DEBUG: Embedding result success: {processing_result.get('success')}")
+        
         if not processing_result["success"]:
-            return f"❌ Tạo embedding thất bại: {processing_result['error']}"
-
-        return f"""✅ Đã xử lý thành công file: {file_name}
+            error_msg = f"❌ Tạo embedding thất bại: {processing_result.get('error', 'Unknown embedding error')}"
+            print(f"❌ DEBUG: {error_msg}")
+            return error_msg
+        
+        print(f"🔍 DEBUG: Processing completed successfully!")
+        success_msg = f"""✅ Đã xử lý thành công file: {file_name}
 📊 Thông tin:
 - Loại file: {file_type.upper()}
 - Số từ: {len(content.split()):,}
-- Chủ đề: {processing_result['topic']}
-- Độ khó: {processing_result['difficulty_level']}
-- Số chunks: {processing_result['total_chunks']}
-- Tags: {', '.join(processing_result['tags'])}
+- Chủ đề: {processing_result.get('topic', 'N/A')}
+- Độ khó: {processing_result.get('difficulty_level', 'N/A')}
+- Số chunks: {processing_result.get('total_chunks', 'N/A')}
+- Tags: {', '.join(processing_result.get('tags', []))}
 
 Tài liệu đã được lưu vào database và sẵn sàng để tìm kiếm!"""
-
+        print(f"🔍 DEBUG: Returning success message")
+        return success_msg
+        
     except Exception as e:
-        return f"❌ Lỗi xử lý file: {str(e)}"
+        error_msg = f"❌ Lỗi xử lý file: {str(e)}"
+        print(f"❌ DEBUG: Exception occurred: {error_msg}")
+        import traceback
+        print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
+        return error_msg
 
 
 @tool
@@ -210,7 +260,8 @@ def get_document_summary(dummy_input: str = "") -> str:
 @tool
 def smart_search_and_answer(query: str) -> str:
     """
-    Tìm kiếm thông minh: Knowledge Base -> Web Search -> LLM Response
+    Tìm kiếm thông minh và trả lời câu hỏi theo luồng: Knowledge Base -> Web Search -> LLM Response
+    Đây là tool chính cho mọi câu hỏi tìm kiếm thông tin.
     
     Args:
         query: Câu hỏi hoặc từ khóa cần tìm
@@ -219,7 +270,10 @@ def smart_search_and_answer(query: str) -> str:
         Kết quả tìm kiếm và trả lời tối ưu
     """
     try:
+        print(f"🔍 SMART SEARCH: Starting search for query: {query}")
+        
         # Bước 1: Tìm trong Knowledge Base trước
+        print(f"🔍 SMART SEARCH: Step 1 - Searching Knowledge Base...")
         kb_results = search_tool.similarity_search(
             query_text=query,
             limit=3,
@@ -229,8 +283,26 @@ def smart_search_and_answer(query: str) -> str:
         if kb_results["success"] and kb_results["results"]:
             # Có kết quả trong KB, đánh giá chất lượng
             best_score = max(result['similarity_score'] for result in kb_results["results"])
+            print(f"🔍 SMART SEARCH: KB found {len(kb_results['results'])} results, best score: {best_score:.3f}")
             
-            if best_score >= 0.6:  # Kết quả KB tốt
+            # Kiểm tra độ relevance thực sự bằng cách xem content có liên quan không
+            best_result = max(kb_results["results"], key=lambda x: x['similarity_score'])
+            content_sample = best_result['content'][:200].lower()
+            query_lower = query.lower()
+            
+            # Từ khóa relevance check
+            relevant_keywords = False
+            query_words = set(query_lower.split())
+            content_words = set(content_sample.split())
+            overlap = len(query_words.intersection(content_words))
+            
+            if overlap >= 2 or best_score >= 0.7:  # Tăng threshold cho KB
+                relevant_keywords = True
+                
+            print(f"🔍 SMART SEARCH: Relevance check - overlap: {overlap}, relevant: {relevant_keywords}")
+            
+            if best_score >= 0.7 and relevant_keywords:  # Tăng threshold từ 0.6 lên 0.7
+                print(f"✅ SMART SEARCH: Using Knowledge Base results (high quality)")
                 results_text = []
                 for i, doc in enumerate(kb_results["results"], 1):
                     content_preview = doc['content'][:400] + "..." if len(doc['content']) > 400 else doc['content']
@@ -247,24 +319,32 @@ def smart_search_and_answer(query: str) -> str:
 {''.join(results_text)}
 
 💡 **Nguồn:** Knowledge Base chất lượng cao
-**Trạng thái:** knowledge_base_found"""
+**Độ tin cậy:** Cao"""
         
         # Bước 2: KB không có hoặc chất lượng thấp -> Tìm kiếm web
+        print(f"🔍 SMART SEARCH: Step 2 - KB insufficient, searching web...")
         from tools.web_search_tool import search_web_with_evaluation, generate_llm_response_for_query
         web_result = search_web_with_evaluation(query)
         
+        print(f"🔍 SMART SEARCH: Web search completed")
+        
         if "search_results_ready" in web_result:
+            print(f"✅ SMART SEARCH: Using web search results")
             return web_result
         elif "llm_response_needed" in web_result:
             # Bước 3: Web search không tốt -> Dùng LLM
+            print(f"🔍 SMART SEARCH: Step 3 - Web insufficient, using LLM fallback...")
             llm_response = generate_llm_response_for_query(query)
+            print(f"✅ SMART SEARCH: Using LLM fallback response")
             return llm_response
         else:
             # Fallback
+            print(f"✅ SMART SEARCH: Using web result as fallback")
             return web_result
             
     except Exception as e:
         # Final fallback
+        print(f"❌ SMART SEARCH: Exception occurred: {str(e)}")
         from tools.web_search_tool import generate_llm_response_for_query
         llm_response = generate_llm_response_for_query(query)
         return f"""⚠️ **Lỗi trong quá trình tìm kiếm: {str(e)}**
@@ -280,6 +360,8 @@ def create_agent():
     """Tạo AI agent với các tools tích hợp (đầu vào đơn giản 1 tham số)"""
     llm = get_llm()
     # Chỉ dùng các tool 1 tham số để tương thích ZeroShotAgent
+    
+    # Chỉ expose các tools chính, ẩn tools phụ để agent không gọi trực tiếp
     tools = [
         get_weather,
         calculate_sum,
@@ -288,12 +370,12 @@ def create_agent():
         wiki_summary,
         upload_and_process_document,
         search_documents,
-        get_document_summary,
         plan_study_auto,
         plan_study_schedule,
-        smart_search_and_answer,
         search_web_with_evaluation,
         generate_llm_response_for_query
+        smart_search_and_answer,  # Tool chính cho search - sẽ handle KB -> Web -> LLM internally
+        get_document_summary
     ]
 
 
