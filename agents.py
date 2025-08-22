@@ -258,7 +258,8 @@ def get_document_summary(dummy_input: str = "") -> str:
 @tool
 def smart_search_and_answer(query: str) -> str:
     """
-    Tìm kiếm thông minh: Knowledge Base -> Web Search -> LLM Response
+    Tìm kiếm thông minh và trả lời câu hỏi theo luồng: Knowledge Base -> Web Search -> LLM Response
+    Đây là tool chính cho mọi câu hỏi tìm kiếm thông tin.
     
     Args:
         query: Câu hỏi hoặc từ khóa cần tìm
@@ -267,7 +268,10 @@ def smart_search_and_answer(query: str) -> str:
         Kết quả tìm kiếm và trả lời tối ưu
     """
     try:
+        print(f"🔍 SMART SEARCH: Starting search for query: {query}")
+        
         # Bước 1: Tìm trong Knowledge Base trước
+        print(f"🔍 SMART SEARCH: Step 1 - Searching Knowledge Base...")
         kb_results = search_tool.similarity_search(
             query_text=query,
             limit=3,
@@ -277,8 +281,26 @@ def smart_search_and_answer(query: str) -> str:
         if kb_results["success"] and kb_results["results"]:
             # Có kết quả trong KB, đánh giá chất lượng
             best_score = max(result['similarity_score'] for result in kb_results["results"])
+            print(f"🔍 SMART SEARCH: KB found {len(kb_results['results'])} results, best score: {best_score:.3f}")
             
-            if best_score >= 0.6:  # Kết quả KB tốt
+            # Kiểm tra độ relevance thực sự bằng cách xem content có liên quan không
+            best_result = max(kb_results["results"], key=lambda x: x['similarity_score'])
+            content_sample = best_result['content'][:200].lower()
+            query_lower = query.lower()
+            
+            # Từ khóa relevance check
+            relevant_keywords = False
+            query_words = set(query_lower.split())
+            content_words = set(content_sample.split())
+            overlap = len(query_words.intersection(content_words))
+            
+            if overlap >= 2 or best_score >= 0.7:  # Tăng threshold cho KB
+                relevant_keywords = True
+                
+            print(f"🔍 SMART SEARCH: Relevance check - overlap: {overlap}, relevant: {relevant_keywords}")
+            
+            if best_score >= 0.7 and relevant_keywords:  # Tăng threshold từ 0.6 lên 0.7
+                print(f"✅ SMART SEARCH: Using Knowledge Base results (high quality)")
                 results_text = []
                 for i, doc in enumerate(kb_results["results"], 1):
                     content_preview = doc['content'][:400] + "..." if len(doc['content']) > 400 else doc['content']
@@ -295,24 +317,32 @@ def smart_search_and_answer(query: str) -> str:
 {''.join(results_text)}
 
 💡 **Nguồn:** Knowledge Base chất lượng cao
-**Trạng thái:** knowledge_base_found"""
+**Độ tin cậy:** Cao"""
         
         # Bước 2: KB không có hoặc chất lượng thấp -> Tìm kiếm web
+        print(f"🔍 SMART SEARCH: Step 2 - KB insufficient, searching web...")
         from tools.web_search_tool import search_web_with_evaluation, generate_llm_response_for_query
         web_result = search_web_with_evaluation(query)
         
+        print(f"🔍 SMART SEARCH: Web search completed")
+        
         if "search_results_ready" in web_result:
+            print(f"✅ SMART SEARCH: Using web search results")
             return web_result
         elif "llm_response_needed" in web_result:
             # Bước 3: Web search không tốt -> Dùng LLM
+            print(f"🔍 SMART SEARCH: Step 3 - Web insufficient, using LLM fallback...")
             llm_response = generate_llm_response_for_query(query)
+            print(f"✅ SMART SEARCH: Using LLM fallback response")
             return llm_response
         else:
             # Fallback
+            print(f"✅ SMART SEARCH: Using web result as fallback")
             return web_result
             
     except Exception as e:
         # Final fallback
+        print(f"❌ SMART SEARCH: Exception occurred: {str(e)}")
         from tools.web_search_tool import generate_llm_response_for_query
         llm_response = generate_llm_response_for_query(query)
         return f"""⚠️ **Lỗi trong quá trình tìm kiếm: {str(e)}**
@@ -326,13 +356,12 @@ def get_llm():
 def create_agent():
     """Tạo AI agent với các tools tích hợp"""
     llm = get_llm()
+    
+    # Chỉ expose các tools chính, ẩn tools phụ để agent không gọi trực tiếp
     tools = [
         upload_and_process_document,
-        search_documents, 
-        get_document_summary,
-        smart_search_and_answer,
-        search_web_with_evaluation,
-        generate_llm_response_for_query
+        smart_search_and_answer,  # Tool chính cho search - sẽ handle KB -> Web -> LLM internally
+        get_document_summary
     ]
 
     # Tạo agent đơn giản với ReAct
