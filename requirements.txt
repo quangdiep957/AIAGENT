@@ -6,3 +6,4 @@ tiktoken
 python-dotenv
 requests
 pymongo
+streamlit
