@@ -1,10 +1,25 @@
-from pymongo import MongoClient
-from config import MONGODB_CONNECTION
+#!/usr/bin/env python3
+"""
+Database Module - Module chính để quản lý database
+
+Import các class từ các file riêng biệt để dễ quản lý và maintain
+"""
+
 import logging
+import os
+from dotenv import load_dotenv
+from pymongo import MongoClient
+from typing import List, Dict, Any, Optional
+
+# Load environment variables
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('database_manager')
+
+# MongoDB connection string from environment
+MONGODB_CONNECTION = os.getenv('CONNECTION', 'mongodb://localhost:27017/')
 
 class DatabaseManager:
     def __init__(self):
@@ -19,30 +34,18 @@ class DatabaseManager:
             self.client = MongoClient(MONGODB_CONNECTION)
             # Test connection
             self.client.admin.command('ping')
-            logger.info("✅ Successfully connected to MongoDB!")
+            logger.info("✅ Kết nối MongoDB thành công!")
             
             # List all available databases
             db_names = self.client.list_database_names()
-            logger.info(f"📁 Available databases: {db_names}")
+            logger.info(f"📁 Các databases có sẵn: {db_names}")
             
-            # Use the first non-system database or specify a default
-            system_dbs = ['admin', 'local', 'config']
-            user_dbs = [db for db in db_names if db not in system_dbs]
-            
-            # Prioritize study_db if it exists
-            if 'study_db' in user_dbs:
-                self.db = self.client['study_db']
-                logger.info(f"🎯 Using database: study_db")
-            elif user_dbs:
-                self.db = self.client[user_dbs[0]]
-                logger.info(f"🎯 Using database: {user_dbs[0]}")
-            else:
-                # If no user databases, create/use a default one
-                self.db = self.client['study_db']
-                logger.info("📝 Creating and using database: study_db")
+            # Always use study_db
+            self.db = self.client['study_db']
+            logger.info(f"🎯 Đang sử dụng database: study_db")
             
         except Exception as e:
-            logger.error(f"❌ Failed to connect to MongoDB: {e}")
+            logger.error(f"❌ Kết nối MongoDB thất bại: {e}")
             raise
     
     def get_collections(self):
@@ -128,46 +131,67 @@ class DatabaseManager:
         if self.client:
             self.client.close()
             logger.info("🔒 MongoDB connection closed")
+# Import semantic document manager
+from semantic_document_manager import SemanticDocumentManager
 
-# Example usage functions
-def demo_database_operations():
-    """Demonstrate basic database operations"""
+# Export các class để sử dụng
+__all__ = [
+    'DatabaseManager',
+    'SemanticDocumentManager'
+]
+
+# Demo function để test cả hai class
+def demo_all_database_features():
+    """Demo tất cả tính năng database"""
     try:
-        # Initialize database manager
+        print("🚀 Demo Tất Cả Tính Năng Database")
+        print("=" * 60)
+        
+        # Test 1: Database Manager cơ bản
+        print("\n📊 Test 1: Database Manager cơ bản...")
+        print("-" * 40)
+        
         db_manager = DatabaseManager()
-        
-        # Get all collections
         collections = db_manager.get_collections()
-        print(f"\n📁 Available collections: {collections}")
+        print(f"📁 Collections có sẵn: {collections}")
         
-        # If there are collections, demonstrate data retrieval
         if collections:
-            # Get data from the first collection
             first_collection = collections[0]
-            print(f"\n📄 Sample data from '{first_collection}':")
-            
-            # Get document count
             count = db_manager.count_documents(first_collection)
-            print(f"Total documents: {count}")
-            
-            # Get sample documents
-            sample_data = db_manager.get_data_from_collection(first_collection, limit=5)
-            for i, doc in enumerate(sample_data, 1):
-                print(f"\nDocument {i}:")
-                # Print first few fields of each document
-                for key, value in list(doc.items())[:3]:
-                    print(f"  {key}: {value}")
-                if len(doc.items()) > 3:
-                    print(f"  ... and {len(doc.items()) - 3} more fields")
+            print(f"📊 Collection '{first_collection}' có {count} documents")
         
-        else:
-            print("No collections found in the database")
-        
-        # Close connection
         db_manager.close_connection()
         
+        # Test 2: Semantic Document Manager
+        print("\n🔍 Test 2: Semantic Document Manager...")
+        print("-" * 40)
+        
+        semantic_manager = SemanticDocumentManager()
+        
+        # Lưu một document mẫu
+        doc_id = semantic_manager.save_document(
+            "demo_user",
+            "demo_document.txt",
+            "Đây là một document mẫu để test semantic search. Document này chứa thông tin về AI và machine learning."
+        )
+        print(f"✅ Đã lưu document với ID: {doc_id}")
+        
+        # Test semantic search
+        results = semantic_manager.search_similar("AI và machine learning", top_k=2)
+        print(f"🔍 Kết quả tìm kiếm: {len(results)} documents")
+        
+        # Xóa document test
+        semantic_manager.delete_document(doc_id, "demo_user")
+        print(f"🗑️ Đã xóa document test")
+        
+        semantic_manager.close_connection()
+        
+        print("\n🎉 Tất cả tests hoàn thành thành công!")
+        
     except Exception as e:
-        print(f"❌ Demo failed: {e}")
+        print(f"❌ Demo thất bại: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    demo_database_operations()
+    demo_all_database_features()
