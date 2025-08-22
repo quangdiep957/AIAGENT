@@ -29,13 +29,17 @@ class DatabaseManager:
             system_dbs = ['admin', 'local', 'config']
             user_dbs = [db for db in db_names if db not in system_dbs]
             
-            if user_dbs:
+            # Prioritize study_db if it exists
+            if 'study_db' in user_dbs:
+                self.db = self.client['study_db']
+                logger.info(f"🎯 Using database: study_db")
+            elif user_dbs:
                 self.db = self.client[user_dbs[0]]
                 logger.info(f"🎯 Using database: {user_dbs[0]}")
             else:
                 # If no user databases, create/use a default one
-                self.db = self.client['aiagent_db']
-                logger.info("📝 Using default database: aiagent_db")
+                self.db = self.client['study_db']
+                logger.info("📝 Creating and using database: study_db")
             
         except Exception as e:
             logger.error(f"❌ Failed to connect to MongoDB: {e}")

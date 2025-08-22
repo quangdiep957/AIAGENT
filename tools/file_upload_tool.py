@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 import hashlib
 import mimetypes
-from bson import ObjectId
+import uuid
 
 class FileUploadTool:
     """Tool xử lý upload file và lưu metadata"""
@@ -188,7 +188,7 @@ class FileUploadTool:
             
             # Tạo document metadata cho MongoDB
             file_document = {
-                "_id": ObjectId(),
+                "_id": str(uuid.uuid4()),
                 "filename": original_filename,
                 "unique_filename": unique_filename,
                 "file_type": file_type,

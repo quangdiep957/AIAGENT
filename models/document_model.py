@@ -2,9 +2,9 @@
 Document Model - Schema cho documents trong MongoDB
 """
 
+import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from bson import ObjectId
 
 class DocumentModel:
     """Schema cho document objects"""
@@ -29,7 +29,7 @@ class DocumentModel:
             Dict[str, Any]: Document schema
         """
         return {
-            "_id": ObjectId(),
+            "_id": str(uuid.uuid4()),
             "filename": filename,
             "file_type": file_type,
             "file_path": file_path,
@@ -64,7 +64,7 @@ class DocumentModel:
             Dict[str, Any]: Content document schema
         """
         return {
-            "_id": ObjectId(),
+            "_id": str(uuid.uuid4()),
             "file_id": file_id,
             "content": content,
             "content_type": content_type,
@@ -101,7 +101,7 @@ class DocumentModel:
             Dict[str, Any]: Embedding document schema
         """
         return {
-            "_id": ObjectId(),
+            "_id": str(uuid.uuid4()),
             "file_id": file_id,
             "type": doc_type,
             "topic": topic,
@@ -145,7 +145,7 @@ class DocumentModel:
             Dict[str, Any]: Processing log schema
         """
         return {
-            "_id": ObjectId(),
+            "_id": str(uuid.uuid4()),
             "file_id": file_id,
             "stage": stage,
             "status": status,
@@ -175,7 +175,7 @@ class DocumentModel:
             Dict[str, Any]: Search query log schema
         """
         return {
-            "_id": ObjectId(),
+            "_id": str(uuid.uuid4()),
             "query_text": query_text,
             "search_type": search_type,
             "results_count": results_count,

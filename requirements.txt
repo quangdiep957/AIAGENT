@@ -27,5 +27,4 @@ numpy
 scikit-learn
 
 # Utilities
-bson
 streamlit

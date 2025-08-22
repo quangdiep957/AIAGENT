@@ -359,7 +359,6 @@ class EmbeddingService:
         """Cập nhật status của file"""
         try:
             collection = self.db_manager.db[self.files_collection]
-            from bson import ObjectId
             
             update_data = {
                 "processing_status": status,
@@ -374,7 +373,7 @@ class EmbeddingService:
                 update_data["processing_metadata"] = metadata
             
             collection.update_one(
-                {"_id": ObjectId(file_id)},
+                {"_id": file_id},
                 {"$set": update_data}
             )
             

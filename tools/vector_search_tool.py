@@ -455,11 +455,9 @@ class VectorSearchTool:
             Dict[str, Any]: Kết quả tìm kiếm
         """
         try:
-            from bson import ObjectId
-            
             # Lấy document gốc
             collection = self.db_manager.db[self.embeddings_collection]
-            source_doc = collection.find_one({"_id": ObjectId(document_id)})
+            source_doc = collection.find_one({"_id": document_id})
             
             if not source_doc:
                 return {
@@ -480,7 +478,7 @@ class VectorSearchTool:
             # Lấy tất cả documents khác
             filter_query = {}
             if exclude_self:
-                filter_query["_id"] = {"$ne": ObjectId(document_id)}
+                filter_query["_id"] = {"$ne": document_id}
             
             cursor = collection.find(filter_query)
             
