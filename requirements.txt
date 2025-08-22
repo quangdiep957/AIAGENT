@@ -6,4 +6,25 @@ tiktoken
 python-dotenv
 requests
 pymongo
+
+# File processing
+PyPDF2
+pdfplumber
+python-docx
+
+# OCR
+pytesseract
+easyocr
+opencv-python
+pdf2image
+Pillow
+
+# Text processing
+chardet
+
+# Vector operations
+numpy
+scikit-learn
+
+# Utilities
 streamlit

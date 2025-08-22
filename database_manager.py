@@ -3,13 +3,20 @@
 Database Manager - Quản lý kết nối MongoDB cơ bản
 """
 
-from pymongo import MongoClient
-from config import MONGODB_CONNECTION
+import os
 import logging
+from dotenv import load_dotenv
+from pymongo import MongoClient
+
+# Load environment variables
+load_dotenv()
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# MongoDB connection from environment
+MONGODB_CONNECTION = os.getenv('CONNECTION', 'mongodb://localhost:27017/')
 
 class DatabaseManager:
     """
@@ -39,18 +46,15 @@ class DatabaseManager:
             db_names = self.client.list_database_names()
             logger.info(f"📁 Các databases có sẵn: {db_names}")
             
-            # Chọn database để sử dụng
-            system_dbs = ['admin', 'local', 'config']
-            user_dbs = [db for db in db_names if db not in system_dbs]
-            
-            if user_dbs:
-                # Sử dụng database đầu tiên không phải system
-                self.db = self.client[user_dbs[0]]
-                logger.info(f"🎯 Đang sử dụng database: {user_dbs[0]}")
+            # Chọn database để sử dụng - ưu tiên study_db
+            if 'study_db' in db_names:
+                # Sử dụng study_db nếu có
+                self.db = self.client['study_db']
+                logger.info(f"🎯 Đang sử dụng database: study_db")
             else:
-                # Nếu không có database nào, tạo database mặc định
-                self.db = self.client['aiagent_db']
-                logger.info("📝 Đang sử dụng database mặc định: aiagent_db")
+                # Tạo study_db nếu chưa có
+                self.db = self.client['study_db']
+                logger.info(f"🎯 Tạo và sử dụng database: study_db")
             
         except Exception as e:
             logger.error(f"❌ Không thể kết nối MongoDB: {e}")
