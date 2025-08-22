@@ -480,3 +480,58 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Demo không thể chạy: {e}")
         print("Cần cài đặt database connection và OpenAI API key")
+
+    def create_embedding_for_text(self, text: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Tạo embedding cho đoạn text đơn lẻ và lưu vào database
+        
+        Args:
+            text (str): Nội dung text cần tạo embedding
+            metadata (Dict): Metadata bổ sung
+            
+        Returns:
+            Dict[str, Any]: Kết quả tạo embedding
+        """
+        try:
+            if not text or not text.strip():
+                return {
+                    "success": False,
+                    "error": "Text không hợp lệ"
+                }
+            
+            # Tạo embedding cho text
+            embedding_result = self.embedding_tool.create_embedding(text)
+            
+            if not embedding_result["success"]:
+                return {
+                    "success": False,
+                    "error": f"Không thể tạo embedding: {embedding_result['error']}"
+                }
+            
+            # Tạo document để lưu
+            document = {
+                "content": text,
+                "embedding": embedding_result["embedding"],
+                "metadata": metadata or {},
+                "source": metadata.get("source", "text_input") if metadata else "text_input",
+                "created_at": datetime.now(),
+                "word_count": len(text.split()),
+                "character_count": len(text)
+            }
+            
+            # Lưu vào database
+            collection = self.db_manager.db[self.embeddings_collection]
+            result = collection.insert_one(document)
+            
+            return {
+                "success": True,
+                "embedding_id": str(result.inserted_id),
+                "word_count": document["word_count"],
+                "character_count": document["character_count"]
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Lỗi tạo embedding cho text: {str(e)}"
+            }
