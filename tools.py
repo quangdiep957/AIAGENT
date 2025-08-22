@@ -11,7 +11,17 @@ def get_weather(city: str) -> str:
     return response.text
 
 @tool
-def calculate_sum(a: int, b: int) -> int:
-    """Tính tổng của hai số nguyên."""
-    print(f"[LOG] Tool used: calculate_sum | input={a , b}")
-    return a + b
+def calculate_sum(numbers: str) -> str:
+    """Tính tổng của hai số nguyên được cung cấp dưới dạng chuỗi cách nhau bằng dấu phẩy. Ví dụ: '5,3' sẽ trả về 8."""
+    try:
+        # Tách chuỗi thành các số
+        num_list = [int(x.strip()) for x in numbers.split(',')]
+        if len(num_list) != 2:
+            return "Lỗi: Tool chỉ hỗ trợ đúng 2 số, cách nhau bằng dấu phẩy"
+        
+        a, b = num_list
+        result = a + b
+        print(f"[LOG] Tool used: calculate_sum | input={numbers}")
+        return f"Tổng của {a} + {b} = {result}"
+    except ValueError:
+        return "Lỗi: Vui lòng nhập đúng định dạng số, ví dụ: '5,3'"

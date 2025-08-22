@@ -1,5 +1,7 @@
 langchain-openai
 langgraph
+langchain
 openai
 tiktoken
 python-dotenv
+requests
