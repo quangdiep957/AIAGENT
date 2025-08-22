@@ -2,14 +2,16 @@
 from langchain_openai import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
 from tools import get_weather, calculate_sum, semantic_search, wiki_search, wiki_summary
-from tools.builtin_tools import plan_study_schedule, plan_study_auto
 import config  # ensure .env is loaded (load_dotenv runs in config)
-
 from langchain.tools import tool
 from typing import List, Dict, Any, Optional
+import json
+from datetime import datetime
 
 # Import các tools hiện có
 from tools import FileUploadTool, FileReaderTool, OCRTool, EmbeddingTool, VectorSearchTool
+from tools import save_chat_content, get_chat_history_summary, search_chat_and_documents, auto_save_english_content
+from tools import search_web_with_evaluation, generate_llm_response_for_query
 from services import EmbeddingService
 from database import DatabaseManager
 
@@ -166,10 +168,10 @@ def search_documents(query: str) -> str:
 
 
 @tool
-def get_document_summary() -> str:
+def get_document_summary(dummy_input: str = "") -> str:
     """
     Lấy tóm tắt về các tài liệu đã upload trong database
-
+    
     Returns:
         Thống kê tài liệu trong database
     """
@@ -204,6 +206,70 @@ def get_document_summary() -> str:
     except Exception as e:
         return f"❌ Lỗi lấy thống kê: {str(e)}"
 
+@tool
+def smart_search_and_answer(query: str) -> str:
+    """
+    Tìm kiếm thông minh: Knowledge Base -> Web Search -> LLM Response
+    
+    Args:
+        query: Câu hỏi hoặc từ khóa cần tìm
+    
+    Returns:
+        Kết quả tìm kiếm và trả lời tối ưu
+    """
+    try:
+        # Bước 1: Tìm trong Knowledge Base trước
+        kb_results = search_tool.similarity_search(
+            query_text=query,
+            limit=3,
+            similarity_threshold=0.4  # Ngưỡng cao hơn để đảm bảo chất lượng
+        )
+        
+        if kb_results["success"] and kb_results["results"]:
+            # Có kết quả trong KB, đánh giá chất lượng
+            best_score = max(result['similarity_score'] for result in kb_results["results"])
+            
+            if best_score >= 0.6:  # Kết quả KB tốt
+                results_text = []
+                for i, doc in enumerate(kb_results["results"], 1):
+                    content_preview = doc['content'][:400] + "..." if len(doc['content']) > 400 else doc['content']
+                    results_text.append(f"""
+📄 **Tài liệu {i}** (Độ tương đồng: {doc['similarity_score']:.2f})
+📚 Chủ đề: {doc.get('topic', 'N/A')}
+📝 Nội dung: {content_preview}
+""")
+                
+                return f"""✅ **Tìm thấy trong Knowledge Base**
+
+🔍 **Tìm thấy {len(kb_results['results'])} tài liệu liên quan:**
+
+{''.join(results_text)}
+
+💡 **Nguồn:** Knowledge Base chất lượng cao
+**Trạng thái:** knowledge_base_found"""
+        
+        # Bước 2: KB không có hoặc chất lượng thấp -> Tìm kiếm web
+        from tools.web_search_tool import search_web_with_evaluation, generate_llm_response_for_query
+        web_result = search_web_with_evaluation(query)
+        
+        if "search_results_ready" in web_result:
+            return web_result
+        elif "llm_response_needed" in web_result:
+            # Bước 3: Web search không tốt -> Dùng LLM
+            llm_response = generate_llm_response_for_query(query)
+            return llm_response
+        else:
+            # Fallback
+            return web_result
+            
+    except Exception as e:
+        # Final fallback
+        from tools.web_search_tool import generate_llm_response_for_query
+        llm_response = generate_llm_response_for_query(query)
+        return f"""⚠️ **Lỗi trong quá trình tìm kiếm: {str(e)}**
+
+{llm_response}"""
+
 def get_llm():
     """Khởi tạo ChatOpenAI model"""
     return ChatOpenAI(model="gpt-4.1", temperature=0.3)
@@ -213,9 +279,21 @@ def create_agent():
     """Tạo AI agent với các tools tích hợp (đầu vào đơn giản 1 tham số)"""
     llm = get_llm()
     # Chỉ dùng các tool 1 tham số để tương thích ZeroShotAgent
-    tools = [get_weather, calculate_sum, semantic_search, wiki_search, wiki_summary, upload_and_process_document,
-     search_documents, get_document_summary,plan_study_auto,plan_study_schedule]
-
+    tools = [
+        get_weather,
+        calculate_sum,
+        semantic_search,
+        wiki_search,
+        wiki_summary,
+        upload_and_process_document,
+        search_documents,
+        get_document_summary,
+        plan_study_auto,
+        plan_study_schedule,
+        smart_search_and_answer,
+        search_web_with_evaluation,
+        generate_llm_response_for_query
+    ]
 
 
     agent_instructions = (
@@ -225,14 +303,16 @@ def create_agent():
         "chỉ gọi wiki_search nếu semantic_search trả về 'NO_HITS'."
     )
 
+    # Tạo agent đơn giản với ReAct
     agent = initialize_agent(
         tools,
         llm,
-        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
         verbose=True,
         handle_parsing_errors=True,
         agent_kwargs={
             "system_message": agent_instructions
-        }
+        },
+        handle_parsing_errors=True
     )
     return agent
