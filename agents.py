@@ -8,6 +8,7 @@ from langchain.tools import tool
 from typing import List, Dict, Any, Optional
 import json
 from datetime import datetime
+import os
 
 # Import các tools hiện có
 from tools import FileUploadTool, FileReaderTool, OCRTool, EmbeddingTool, VectorSearchTool
@@ -373,7 +374,7 @@ def create_agent():
         plan_study_auto,
         plan_study_schedule,
         search_web_with_evaluation,
-        generate_llm_response_for_query
+        generate_llm_response_for_query,
         smart_search_and_answer,  # Tool chính cho search - sẽ handle KB -> Web -> LLM internally
         get_document_summary
     ]
