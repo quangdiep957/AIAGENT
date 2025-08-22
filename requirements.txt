@@ -1,8 +1,10 @@
 langchain-openai
 langgraph
+langchain
 openai
 tiktoken
 python-dotenv
+requests
 pymongo
 
 # File processing
@@ -26,3 +28,4 @@ scikit-learn
 
 # Utilities
 bson
+streamlit
