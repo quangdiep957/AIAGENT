@@ -8,10 +8,18 @@ from .ocr_tool import OCRTool
 from .embedding_tool import EmbeddingTool
 from .vector_search_tool import VectorSearchTool
 
+# Builtin simple tools
+from .builtin_tools import get_weather, calculate_sum, semantic_search, wiki_search, wiki_summary
+
 __all__ = [
     'FileUploadTool',
     'FileReaderTool', 
     'OCRTool',
     'EmbeddingTool',
-    'VectorSearchTool'
+    'VectorSearchTool',
+    'get_weather',
+    'calculate_sum',
+    'semantic_search',
+    'wiki_search',
+    'wiki_summary'
 ]
