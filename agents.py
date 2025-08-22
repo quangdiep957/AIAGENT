@@ -35,13 +35,25 @@ def upload_and_process_document(file_info: str) -> str:
         Kết quả xử lý file
     """
     try:
+        print(f"🔍 DEBUG: Starting upload process with input: {file_info}")
+        
         # Parse file info
         if "|" not in file_info:
+            print(f"❌ DEBUG: Invalid format - missing | separator")
             return "❌ Format không đúng. Vui lòng sử dụng format: file_path|file_name"
         
         file_path, file_name = file_info.split("|", 1)
+        print(f"🔍 DEBUG: Parsed - file_path: {file_path}, file_name: {file_name}")
+        
+        # Check file exists
+        if not os.path.exists(file_path):
+            print(f"❌ DEBUG: File not found at path: {file_path}")
+            return f"❌ File không tồn tại: {file_path}"
+        
+        print(f"🔍 DEBUG: File size: {os.path.getsize(file_path):,} bytes")
         
         # Upload file
+        print(f"🔍 DEBUG: Starting file upload...")
         upload_result = upload_tool.upload_file(
             file_path=file_path,
             metadata={
@@ -50,11 +62,15 @@ def upload_and_process_document(file_info: str) -> str:
             }
         )
         
+        print(f"🔍 DEBUG: Upload result success: {upload_result.get('success')}")
         if not upload_result["success"]:
-            return f"❌ Upload thất bại: {', '.join(upload_result['errors'])}"
+            error_msg = f"❌ Upload thất bại: {', '.join(upload_result.get('errors', ['Unknown error']))}"
+            print(f"❌ DEBUG: {error_msg}")
+            return error_msg
         
         file_document = upload_result["document"]
         file_id = upload_result["file_id"]
+        print(f"🔍 DEBUG: Upload successful - file_id: {file_id}")
         
         # Extract content dựa trên loại file
         content = ""
@@ -62,33 +78,56 @@ def upload_and_process_document(file_info: str) -> str:
         file_type = file_document["file_type"]
         file_path_abs = file_document["absolute_path"]
         
-        if file_type in ["pdf", "docx", "doc", "txt", "md"]:
+        print(f"🔍 DEBUG: File type detected: {file_type}")
+        print(f"🔍 DEBUG: Absolute path: {file_path_abs}")
+        
+        if file_type in ["pdf", "docx", "doc", "txt", "md", "text"]:
             # Đọc file text-based
+            print(f"🔍 DEBUG: Reading {file_type} file...")
             read_result = reader_tool.read_file(file_path_abs)
+            print(f"🔍 DEBUG: Read result success: {read_result.get('success')}")
+            
             if read_result["success"]:
                 if file_type == "pdf":
-                    content = read_result["total_content"]
+                    content = read_result.get("total_content", read_result.get("content", ""))
                 elif file_type in ["docx", "doc"]:
-                    content = read_result["total_content"]
+                    content = read_result.get("total_content", read_result.get("content", ""))
                 else:  # text files
                     content = read_result["content"]
                 extraction_method = "file_reader"
+                print(f"🔍 DEBUG: Content extracted - length: {len(content)} chars")
             else:
-                return f"❌ Không thể đọc file: {read_result['error']}"
+                error_msg = f"❌ Không thể đọc file: {read_result.get('error', 'Unknown read error')}"
+                print(f"❌ DEBUG: {error_msg}")
+                return error_msg
         
         elif file_type == "image":
             # OCR cho ảnh
+            print(f"🔍 DEBUG: Processing image with OCR...")
             ocr_result = ocr_tool.extract_text_from_image(file_path_abs)
+            print(f"🔍 DEBUG: OCR result success: {ocr_result.get('success')}")
+            
             if ocr_result["success"]:
                 content = ocr_result["text"]
                 extraction_method = "ocr"
+                print(f"🔍 DEBUG: OCR content extracted - length: {len(content)} chars")
             else:
-                return f"❌ OCR thất bại: {ocr_result['error']}"
+                error_msg = f"❌ OCR thất bại: {ocr_result.get('error', 'Unknown OCR error')}"
+                print(f"❌ DEBUG: {error_msg}")
+                return error_msg
+        else:
+            error_msg = f"❌ Loại file không được hỗ trợ: {file_type}"
+            print(f"❌ DEBUG: {error_msg}")
+            return error_msg
         
         if not content or not content.strip():
+            print(f"❌ DEBUG: Empty content after extraction")
             return "❌ Không thể trích xuất nội dung từ file"
         
+        print(f"🔍 DEBUG: Content validation passed - {len(content.split())} words")
+        
         # Tạo embeddings
+        print(f"🔍 DEBUG: Creating embeddings...")
         processing_result = embedding_service.process_file_content(
             file_id=file_id,
             content=content,
@@ -98,22 +137,33 @@ def upload_and_process_document(file_info: str) -> str:
             }
         )
         
-        if not processing_result["success"]:
-            return f"❌ Tạo embedding thất bại: {processing_result['error']}"
+        print(f"🔍 DEBUG: Embedding result success: {processing_result.get('success')}")
         
-        return f"""✅ Đã xử lý thành công file: {file_name}
+        if not processing_result["success"]:
+            error_msg = f"❌ Tạo embedding thất bại: {processing_result.get('error', 'Unknown embedding error')}"
+            print(f"❌ DEBUG: {error_msg}")
+            return error_msg
+        
+        print(f"🔍 DEBUG: Processing completed successfully!")
+        success_msg = f"""✅ Đã xử lý thành công file: {file_name}
 📊 Thông tin:
 - Loại file: {file_type.upper()}
 - Số từ: {len(content.split()):,}
-- Chủ đề: {processing_result['topic']}
-- Độ khó: {processing_result['difficulty_level']}
-- Số chunks: {processing_result['total_chunks']}
-- Tags: {', '.join(processing_result['tags'])}
+- Chủ đề: {processing_result.get('topic', 'N/A')}
+- Độ khó: {processing_result.get('difficulty_level', 'N/A')}
+- Số chunks: {processing_result.get('total_chunks', 'N/A')}
+- Tags: {', '.join(processing_result.get('tags', []))}
 
 Tài liệu đã được lưu vào database và sẵn sàng để tìm kiếm!"""
+        print(f"🔍 DEBUG: Returning success message")
+        return success_msg
         
     except Exception as e:
-        return f"❌ Lỗi xử lý file: {str(e)}"
+        error_msg = f"❌ Lỗi xử lý file: {str(e)}"
+        print(f"❌ DEBUG: Exception occurred: {error_msg}")
+        import traceback
+        print(f"❌ DEBUG: Traceback: {traceback.format_exc()}")
+        return error_msg
 
 @tool
 def search_documents(query: str) -> str:
