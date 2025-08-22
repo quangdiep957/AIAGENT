@@ -10,6 +10,7 @@ from tools import FileUploadTool, FileReaderTool, OCRTool, EmbeddingTool, Vector
 from services import EmbeddingService
 from models import DocumentModel, DocumentUtils
 from database import DatabaseManager
+from agents import create_agent
 
 st.set_page_config(page_title="AI Tutor", page_icon="🤖", layout="wide")
 
@@ -28,6 +29,7 @@ def init_tools():
         search_tool = VectorSearchTool()
         embedding_service = EmbeddingService()
         db_manager = DatabaseManager()
+        ai_agent = create_agent()
         
         return {
             "upload_tool": upload_tool,
@@ -37,6 +39,7 @@ def init_tools():
             "search_tool": search_tool,
             "embedding_service": embedding_service,
             "db_manager": db_manager,
+            "ai_agent": ai_agent,
             "status": "success"
         }
     except Exception as e:
@@ -280,8 +283,87 @@ def search_relevant_content(query, limit=3):
 
 
 def generate_ai_response(user_message, relevant_docs=None):
-    """Tạo phản hồi AI với context từ documents"""
+    """Tạo phản hồi AI sử dụng agent với context từ documents"""
     try:
+        if tools["status"] != "success":
+            return "❌ AI Agent chưa được khởi tạo đúng cách"
+        
+        # Chuẩn bị context cho agent
+        context_info = ""
+        if relevant_docs:
+            context_info = f"\n\nThông tin liên quan từ tài liệu:\n"
+            for i, doc in enumerate(relevant_docs, 1):
+                context_info += f"📄 Tài liệu {i}: {doc['content'][:200]}...\n"
+        
+        # Tạo prompt cho agent
+        agent_prompt = f"""
+Bạn là AI Tutor, một trợ lý học tập tiếng Anh thông minh và thân thiện. Hãy trả lời câu hỏi của học sinh một cách chi tiết và hữu ích.
+
+Câu hỏi của học sinh: {user_message}
+{context_info}
+
+QUY TẮC QUAN TRỌNG:
+1. Giao tiếp và giải thích bằng TIẾNG VIỆT
+2. Nội dung tiếng Anh (truyện, ví dụ, câu mẫu) PHẢI GIỮ NGUYÊN TIẾNG ANH - KHÔNG DỊCH
+3. Chỉ giải thích nghĩa hoặc thêm chú thích bằng tiếng Việt nếu cần
+
+Hướng dẫn trả lời:
+1. Nếu câu hỏi liên quan đến việc tìm kiếm thông tin từ tài liệu đã upload, hãy sử dụng tool search_documents
+2. Nếu học sinh muốn biết thống kê tài liệu, hãy sử dụng tool get_document_summary  
+3. Trả lời bằng tiếng Việt, thân thiện và dễ hiểu
+4. Sử dụng emoji để làm cho câu trả lời sinh động
+5. Cấu trúc rõ ràng với các điểm chính
+6. GIỮ NGUYÊN tất cả nội dung tiếng Anh từ tài liệu (truyện, câu ví dụ, bài tập)
+7. Có thể thêm chú thích nghĩa tiếng Việt trong ngoặc đơn nếu cần
+8. Nếu không tìm thấy thông tin liên quan, gợi ý học sinh upload thêm tài liệu
+
+Ví dụ format mong muốn:
+- Giải thích: "Đây là truyện ngắn đơn giản để luyện đọc:"
+- Nội dung tiếng Anh: "She goes to the zoo. She sees a lion."
+- Chú thích nếu cần: "(Cô ấy đi sở thú. Cô ấy nhìn thấy một con sư tử.)"
+
+Hãy trả lời một cách tự nhiên và hữu ích:
+"""
+        
+        # Gọi AI agent
+        response = tools["ai_agent"].invoke({"input": agent_prompt})
+        
+        # Extract response từ agent output
+        if isinstance(response, dict) and "output" in response:
+            agent_response = response["output"]
+        else:
+            agent_response = str(response)
+        
+        # Clean up JSON response nếu có
+        if "action_input" in agent_response:
+            try:
+                import json
+                # Try to extract action_input from JSON
+                lines = agent_response.strip().split('\n')
+                for line in lines:
+                    if '"action_input"' in line:
+                        # Extract the value after action_input
+                        start = line.find('"action_input": "') + len('"action_input": "')
+                        end = line.rfind('"')
+                        if start < end:
+                            agent_response = line[start:end]
+                            break
+            except:
+                pass
+        
+        # Clean up escape characters và format markdown
+        agent_response = agent_response.replace('\\n', '\n')  # Fix newlines
+        agent_response = agent_response.replace('\\"', '"')   # Fix quotes
+        agent_response = agent_response.replace('\\/', '/')   # Fix slashes
+        
+        # Đảm bảo response có format đẹp
+        if not agent_response.startswith('🤖') and not agent_response.startswith('📚'):
+            agent_response = f"🤖 **AI Tutor:**\n\n{agent_response}"
+        
+        return agent_response
+        
+    except Exception as e:
+        # Fallback về response cũ nếu agent bị lỗi
         if relevant_docs:
             context = "\n\n".join([f"📄 {doc['type']}: {doc['content']}" for doc in relevant_docs])
             response = f"""
@@ -295,6 +377,8 @@ def generate_ai_response(user_message, relevant_docs=None):
 {user_message}
 
 Dựa trên nội dung trên, đây là gợi ý học tập phù hợp với câu hỏi của bạn.
+
+⚠️ *Lưu ý: AI Agent đang gặp vấn đề ({str(e)}), đây là phản hồi dự phòng*
             """
         else:
             response = f"""
@@ -307,12 +391,11 @@ Hiện tại chưa có tài liệu nào được upload để tham khảo. Bạn
 - Đặt câu hỏi cụ thể về chủ đề bạn quan tâm
 
 Tôi sẽ giúp bạn học tập hiệu quả hơn! 📘
+
+⚠️ *Lưu ý: AI Agent đang gặp vấn đề ({str(e)}), đây là phản hồi dự phòng*
             """
         
         return response
-        
-    except Exception as e:
-        return f"❌ Lỗi khi tạo phản hồi: {str(e)}"
 
 
 def new_session():
