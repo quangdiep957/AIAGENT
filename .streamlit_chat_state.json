@@ -1,0 +1,39 @@
+{
+  "sessions": {
+    "2f423f2f-f1d6-4a16-8629-9acb7aa82636": {
+      "id": "2f423f2f-f1d6-4a16-8629-9acb7aa82636",
+      "name": "Phiên đầu tiên",
+      "messages": [
+        {
+          "role": "user",
+          "mtype": "text",
+          "content": "demo",
+          "meta": null
+        }
+      ]
+    },
+    "7de01e98-d8f6-4c6c-9b62-b4f4948dbce1": {
+      "id": "7de01e98-d8f6-4c6c-9b62-b4f4948dbce1",
+      "name": "Phiên 2",
+      "messages": [
+        {
+          "role": "user",
+          "mtype": "text",
+          "content": "demo",
+          "meta": null
+        }
+      ]
+    },
+    "86fe0ee2-fd90-4ff9-9b33-21329f09abed": {
+      "id": "86fe0ee2-fd90-4ff9-9b33-21329f09abed",
+      "name": "Phiên 3",
+      "messages": []
+    },
+    "b5ee01aa-a5fa-46ee-93ac-ec7b401b85d0": {
+      "id": "b5ee01aa-a5fa-46ee-93ac-ec7b401b85d0",
+      "name": "Phiên 4",
+      "messages": []
+    }
+  },
+  "current_id": "b5ee01aa-a5fa-46ee-93ac-ec7b401b85d0"
+}
