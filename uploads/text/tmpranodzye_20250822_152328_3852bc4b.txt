@@ -1,0 +1,4 @@
+{
+  "action": "Final Answer",
+  "action_input": "Xin chào! Tôi có thể giúp gì cho bạn hôm nay? Nếu bạn có câu hỏi hoặc cần hỗ trợ về tài liệu, hãy cho tôi biết nhé."
+}
