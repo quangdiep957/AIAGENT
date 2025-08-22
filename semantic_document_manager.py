@@ -129,14 +129,7 @@ class SemanticDocumentManager:
     def search_similar(self, query, top_k=3, user_id=None):
         """
         Tìm kiếm documents tương tự sử dụng semantic similarity với cosine similarity
-        
-        Args:
-            query (str): Câu query tìm kiếm
-            top_k (int): Số lượng kết quả top trả về
-            user_id (str): Lọc theo user ID (tùy chọn)
-        
-        Returns:
-            list: Danh sách documents tương tự với scores
+        (trong 1 collection được cấu hình)
         """
         try:
             # Tạo embedding cho query
@@ -176,7 +169,8 @@ class SemanticDocumentManager:
                     "file_name": doc.get("file_name", ""),
                     "user_id": doc.get("user_id", ""),
                     "metadata": doc.get("metadata", {}),
-                    "score": score
+                    "score": score,
+                    "_collection": self.collection_name
                 }
                 results.append(result)
             
@@ -185,6 +179,52 @@ class SemanticDocumentManager:
             
         except Exception as e:
             logger.error(f"❌ Lỗi trong semantic search: {e}")
+            return []
+    
+    def search_similar_all_collections(self, query, top_k=3, user_id=None):
+        """
+        Tìm kiếm semantic trên TẤT CẢ collections trong database hiện tại.
+        Chỉ lấy các documents có trường 'embedding'.
+        Trả về top_k tốt nhất toàn cục.
+        """
+        try:
+            query_embedding = self.embeddings_model.embed_query(query)
+            all_collections = self.db.list_collection_names()
+            similarities = []
+            for col in all_collections:
+                collection = self.db[col]
+                try:
+                    cursor = collection.find({"embedding": {"$exists": True}})
+                    for doc in cursor:
+                        if user_id and doc.get("user_id") != user_id:
+                            continue
+                        doc_embedding = doc.get("embedding")
+                        if not doc_embedding:
+                            continue
+                        score = self._cosine_similarity(query_embedding, doc_embedding)
+                        similarities.append((doc, score, col))
+                except Exception as ce:
+                    logger.debug(f"Bỏ qua collection '{col}' do lỗi: {ce}")
+                    continue
+            if not similarities:
+                logger.info("🔍 Không tìm thấy documents có embedding trong bất kỳ collection nào")
+                return []
+            similarities.sort(key=lambda x: x[1], reverse=True)
+            top = similarities[:top_k]
+            results = []
+            for doc, score, col in top:
+                results.append({
+                    "content": doc.get("content", ""),
+                    "file_name": doc.get("file_name", f"{col}#doc"),
+                    "user_id": doc.get("user_id", ""),
+                    "metadata": doc.get("metadata", {}),
+                    "score": score,
+                    "_collection": col
+                })
+            logger.info(f"🔍 (All collections) Tìm thấy {len(results)} documents tương tự cho query: '{query}'")
+            return results
+        except Exception as e:
+            logger.error(f"❌ Lỗi khi tìm trên tất cả collections: {e}")
             return []
     
     def _cosine_similarity(self, vec1, vec2):
@@ -334,13 +374,11 @@ def demo_semantic_search():
             print(f"     Nội dung: {result.get('content', '')[:100]}...")
             print(f"     Score: {result.get('score', 'N/A')}")
         
-        # Tìm kiếm nội dung vật lý
-        physics_results = semantic_manager.search_similar("Lực và gia tốc có mối quan hệ gì?", top_k=2)
-        print(f"\n🔍 Tìm kiếm: 'Lực và gia tốc có mối quan hệ gì?'")
-        for i, result in enumerate(physics_results, 1):
-            print(f"  {i}. File: {result.get('file_name', 'Unknown')}")
-            print(f"     Nội dung: {result.get('content', '')[:100]}...")
-            print(f"     Score: {result.get('score', 'N/A')}")
+        # Tìm kiếm trên tất cả collections
+        print("\n🔎 Test 2b: Tìm kiếm trên tất cả collections...")
+        all_results = semantic_manager.search_similar_all_collections("Công thức tính cạnh huyền là gì?", top_k=3)
+        for i, result in enumerate(all_results, 1):
+            print(f"  {i}. [{result.get('_collection')}] {result.get('file_name', 'Unknown')} - score={result.get('score', 0):.3f}")
         
         # Test 3: Lấy documents của user
         print("\n📄 Test 3: Lấy documents của user...")
