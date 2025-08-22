@@ -187,7 +187,7 @@ class OCRTool:
             # Fallback: đọc ảnh gốc
             return cv2.imread(image_path)
     
-    def _preprocess_image_pil(self, image_path: str) -> Image.Image:
+    def _preprocess_image_pil(self, image_path: str) -> Any:
         """
         Tiền xử lý ảnh bằng PIL
         

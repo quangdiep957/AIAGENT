@@ -2,6 +2,7 @@
 from langchain_openai import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
 from tools import get_weather, calculate_sum, semantic_search, wiki_search, wiki_summary
+from tools.builtin_tools import plan_study_auto, plan_study_schedule
 import config  # ensure .env is loaded (load_dotenv runs in config)
 from langchain.tools import tool
 from typing import List, Dict, Any, Optional
@@ -177,11 +178,11 @@ def get_document_summary(dummy_input: str = "") -> str:
     """
     try:
         collections = db_manager.get_collections()
-
+        
         if "document_embeddings" in collections:
             collection = db_manager.db["document_embeddings"]
             total_docs = collection.count_documents({})
-
+            
             # Lấy thống kê theo chủ đề
             pipeline = [
                 {"$group": {"_id": "$topic", "count": {"$sum": 1}}},
@@ -189,9 +190,9 @@ def get_document_summary(dummy_input: str = "") -> str:
                 {"$limit": 5}
             ]
             topics = list(collection.aggregate(pipeline))
-
+            
             topic_summary = "\n".join([f"- {topic['_id']}: {topic['count']} tài liệu" for topic in topics])
-
+            
             return f"""📊 **Thống kê tài liệu trong database:**
 
 📚 Tổng số tài liệu: {total_docs}
@@ -202,7 +203,7 @@ def get_document_summary(dummy_input: str = "") -> str:
 💡 Bạn có thể hỏi tôi về bất kỳ chủ đề nào trong danh sách trên!"""
         else:
             return "📚 Chưa có tài liệu nào được upload. Hãy upload tài liệu để tôi có thể hỗ trợ bạn!"
-
+            
     except Exception as e:
         return f"❌ Lỗi lấy thống kê: {str(e)}"
 
@@ -312,7 +313,6 @@ def create_agent():
         handle_parsing_errors=True,
         agent_kwargs={
             "system_message": agent_instructions
-        },
-        handle_parsing_errors=True
+        }
     )
     return agent
