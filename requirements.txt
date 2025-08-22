@@ -4,4 +4,3 @@ langchain
 openai
 tiktoken
 python-dotenv
-requests
