@@ -2,8 +2,6 @@
 import os
 from langchain_openai import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
-from tools import get_weather, calculate_sum, semantic_search, wiki_search, wiki_summary
-import config  # ensure .env is loaded (load_dotenv runs in config)
 from langchain.tools import tool
 from typing import List, Dict, Any, Optional
 import json
